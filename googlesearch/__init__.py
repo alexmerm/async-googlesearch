@@ -1,28 +1,26 @@
 """googlesearch is a Python library for searching Google, easily."""
-from time import sleep
+import asyncio
 from bs4 import BeautifulSoup
-from requests import get
+import aiohttp
 from .user_agents import get_useragent
 import urllib
 
 
-def _req(term, results, lang, start, proxies, timeout):
-    resp = get(
-        url="https://www.google.com/search",
-        headers={
-            "User-Agent": get_useragent()
-        },
-        params={
-            "q": term,
-            "num": results + 2,  # Prevents multiple requests
-            "hl": lang,
-            "start": start,
-        },
-        proxies=proxies,
-        timeout=timeout,
-    )
-    resp.raise_for_status()
-    return resp
+async def _req(term, results, lang, start, proxy, timeout):
+    url="https://www.google.com/search"
+    headers={
+        "User-Agent": get_useragent()
+    }
+    params={
+        "q": term,
+        "num": results + 2,  # Prevents multiple requests
+        "hl": lang,
+        "start": start,
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers = headers, params = params, proxy = proxy, timeout = timeout) as resp:
+            resp.raise_for_status()
+            return await resp.text()
 
 
 class SearchResult:
@@ -35,29 +33,22 @@ class SearchResult:
         return f"SearchResult(url={self.url}, title={self.title}, description={self.description})"
 
 
-def search(term, num_results=10, lang="en", proxy=None, advanced=False, sleep_interval=0, timeout=5):
+async def search(term, num_results=10, lang="en", proxy=None, advanced=False, sleep_interval=0, timeout=5):
     """Search the Google search engine"""
 
     escaped_term = urllib.parse.quote_plus(term) # make 'site:xxx.xxx.xxx ' works.
 
-    # Proxy
-    proxies = None
-    if proxy:
-        if proxy.startswith("https"):
-            proxies = {"https": proxy}
-        else:
-            proxies = {"http": proxy}
 
     # Fetch
     start = 0
     while start < num_results:
         # Send request
-        resp = _req(escaped_term, num_results - start,
-                    lang, start, proxies, timeout)
-
+        resp = await  _req(escaped_term, num_results - start,
+                    lang, start, proxy, timeout)
         # Parse
-        soup = BeautifulSoup(resp.text, "html.parser")
+        soup = BeautifulSoup(resp, "html.parser")
         result_block = soup.find_all("div", attrs={"class": "g"})
+        print("len(result_block):{}".format(len(result_block)) )
         if len(result_block) ==0:
             start += 1
         for result in result_block:
@@ -74,7 +65,7 @@ def search(term, num_results=10, lang="en", proxy=None, advanced=False, sleep_in
                         yield SearchResult(link["href"], title.text, description)
                     else:
                         yield link["href"]
-        sleep(sleep_interval)
+        asyncio.sleep(sleep_interval)
 
         if start == 0:
-            return []
+            return
