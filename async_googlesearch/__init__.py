@@ -48,7 +48,6 @@ async def search(term, num_results=10, lang="en", proxy=None, advanced=False, sl
         # Parse
         soup = BeautifulSoup(resp, "html.parser")
         result_block = soup.find_all("div", attrs={"class": "g"})
-        print("len(result_block):{}".format(len(result_block)) )
         if len(result_block) ==0:
             start += 1
         for result in result_block:
@@ -65,7 +64,7 @@ async def search(term, num_results=10, lang="en", proxy=None, advanced=False, sl
                         yield SearchResult(link["href"], title.text, description)
                     else:
                         yield link["href"]
-        asyncio.sleep(sleep_interval)
+        await asyncio.sleep(sleep_interval)
 
         if start == 0:
             return
